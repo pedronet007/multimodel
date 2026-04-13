@@ -1,0 +1,23 @@
+{
+  "asset": "BOVA11",
+  "model": "GRU",
+  "n_pregoes": 2468,
+  "n_janelas": 30,
+  "tempo_seg": 213.7,
+  "total_return_strategy_pct": 35.52,
+  "total_return_benchmark_pct": 145.36,
+  "cagr_strategy_pct": 4.14,
+  "sharpe_ratio": -0.2328,
+  "sortino_ratio": -0.2864,
+  "max_drawdown_pct": -48.09,
+  "alpha_pct": -4.21,
+  "beta": -0.131,
+  "calmar_ratio": 0.086,
+  "accuracy_accepted_pct": 56.48,
+  "rejection_rate_pct": 38.36,
+  "hit_rate_pct": 33.33,
+  "n_trades": 18,
+  "n_buy": 679,
+  "n_sell": 486,
+  "n_rejected": 725
+}
