@@ -1,0 +1,154 @@
+# ===========================================================
+# config.yaml — Configurações do Pipeline LSTM B3
+# Dissertação: "Sistemas Inteligentes para Alocação de Capital"
+# Autor: Pedro Wilson Félix Magalhães Neto — IFCE / PPGET
+# ===========================================================
+
+data:
+  # Convenção de nomes: data/{ticker}_daily_adjusted.csv
+  # Exemplo: PETR4 → data/petr4_daily_adjusted.csv
+  # Pode ser sobrescrito via --asset e --file na linha de comando.
+  data_dir: "data"
+  file_suffix: "_daily_adjusted.csv"   # sufixo padrão do nome do arquivo
+  primary_asset: "bova11"              # padrão; sobrescrito por --asset
+  benchmark_asset: "bova11"            # benchmark buy-and-hold (mesmo ativo)
+
+features:
+  rsi_period: 14                    # período padrão RSI (Wilder, 1978)
+  rsi_short_period: 7               # período curto para razão RSI14/RSI7
+  rsi_lpf_period: 5                 # janela p do filtro passa-baixas (Seção 2.6.1.2)
+  zona_neutra: 2.0                  # banda de rejeição ±2 em torno de 50 (Guerra, 2025)
+  ma_period: 66                     # MA longa para RSL (Seção 3.2.1)
+  window_size: 30                   # L — janela deslizante LSTM (Seção 3.3.2)
+  log_return_window: 20             # janela para volatilidade realizada
+
+  # ── Médias Móveis (SMA e EMA) ─────────────────────────────────────────────
+  # Usadas como features de posição relativa do preço e de cruzamento.
+  # Normalizadas como distância percentual do preço: (close - MA) / MA
+  sma_periods: [9, 21, 50]          # períodos das SMA (aritmética)
+  ema_periods: [9, 21, 50]          # períodos das EMA (exponencial)
+
+  # ── Bandas de Bollinger ───────────────────────────────────────────────────
+  # Volatilidade relativa e posição do preço dentro das bandas.
+  # Referência: Bollinger (1992) — Using Bollinger Bands
+  bb_period: 20                     # janela da média central (SMA20)
+  bb_std: 2.0                       # número de desvios-padrão
+
+model:
+  lstm_units_1: 64                  # LSTM camada 1 (Seção 3.3.5)
+  lstm_units_2: 32                  # LSTM camada 2
+  dense_units: 16                   # dense compartilhado (ReLU)
+  dropout_rate: 0.20                # dropout entre camadas recorrentes
+  l2_lambda: 0.0001                 # penalização L2 (opcional)
+
+training:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.001              # Adam — taxa inicial 1e-3 (Seção 3.3.9)
+  early_stopping_patience: 10       # paciência early stopping
+  validation_split: 0.15            # fração de validação interna
+  loss_weights:
+    alpha: 0.30                     # peso MSE retorno t+1 (Seção 3.3.7)
+    beta:  0.35                     # peso BCE tendência 30 dias
+    gamma: 0.35                     # peso CCE classificação compra/venda
+
+targets:
+  horizon_ret: 1                    # horizonte regressão (dias úteis)
+  horizon_trend: 30                 # horizonte tendência (Seção 3.3.1)
+  return_threshold: 0.0             # limiar para rotulagem por retorno (0 = qualquer positivo)
+
+  # ── Critério de rotulagem técnica (configurable) ─────────────────────────
+  # Define qual teoria de RSI é usada para enriquecer o rótulo y_decision,
+  # além do critério base de retorno futuro.
+  #
+  # rotulagem_tecnica: "nenhum"   → rótulo puro: só retorno futuro (original)
+  # rotulagem_tecnica: "guerra"   → RSI_LPF cruzando faixa de 50 (Guerra, 2025)
+  #                                  Adequado para índices e ativos de tendência
+  # rotulagem_tecnica: "classico" → RSI14 saindo de sobrecompra (>70→<70)
+  #                                  ou saindo de sobrevenda (<30→>30)
+  #                                  Adequado para ações individuais
+  #
+  rotulagem_tecnica: "nenhum"       # "nenhum" | "guerra" | "classico"
+
+  # Parâmetros da teoria Guerra (RSI_LPF):
+  rsi_lpf_limiar: 50                # nível neutro — venda quando os 3 RSIs < 50
+
+  # Parâmetros da teoria clássica (sobrecompra/sobrevenda):
+  rsi_sobrecompra: 70               # RSI14 saindo de sobrecompra (cruzamento 70↓)
+  rsi_sobrevenda:  30               # RSI14 saindo de sobrevenda  (cruzamento 30↑)
+
+# ── Transformer Encoder — Vaswani et al. (2017) ──────────────────────────────
+# Hiperparâmetros adaptados para séries financeiras (d_model menor que NLP).
+# Referência: Attention Is All You Need, NeurIPS 2017.
+#
+# d_model   : dimensão interna (projeção das features + positional encoding)
+#             Artigo usa 512 para NLP; 64 é adequado para 15 features / L=30.
+# num_heads : cabeças de atenção — d_k = d_model / num_heads = 64/4 = 16
+#             Artigo usa 8 cabeças; 4 é suficiente para o tamanho reduzido.
+# num_layers: blocos encoder empilhados (artigo usa 6; 2 evita overfitting)
+# dff       : dimensão interna do feed-forward (artigo usa 2048; proporcional)
+# dropout_rate: regularização (artigo usa 0.1)
+model_transformer:
+  d_model:      64      # dimensão do modelo (deve ser divisível por num_heads)
+  num_heads:     4      # cabeças de atenção paralelas
+  num_layers:    2      # blocos encoder empilhados
+  dff:         128      # dimensão interna do feed-forward
+  dropout_rate: 0.1     # dropout após atenção e FFN
+  learning_rate: 0.001  # Adam
+  loss_weights:
+    alpha: 0.30         # MSE retorno
+    beta:  0.35         # BCE tendência
+    gamma: 0.35         # CCE classificação
+
+walk_forward:
+  train_size: 500                   # janela treinamento (~1 ano de pregões) — Seção 3.5.1
+  test_size: 63                     # janela teste (~trimestral, 3 meses)
+  step_size: 63                     # passo entre janelas (= test_size → sem overlap)
+  n_ensemble: 1                     # runs por janela — seleciona melhor inicialização
+                                    # 1 = sem ensemble (original), 3 = recomendado
+
+backtest:
+  initial_capital: 10000.0          # capital inicial R$ (Seção 3.4)
+  transaction_cost: 0.0010          # custo por operação 0.10%
+  # Nota: stop-loss e take-profit foram removidos intencionalmente.
+  # A saída de posição ocorre SOMENTE por sinal do modelo (decision=0),
+  # garantindo que o comparativo entre modelos reflita apenas a qualidade
+  # do sinal gerado, sem interferência de regras externas de gestão.
+
+  # ── Mecanismo de Rejeição de Chow (1970) ─────────────────────────────────
+  # Controla como o limiar τ é calculado a cada janela walk-forward.
+  #
+  # use_cost_tau: true  → τ derivado dos custos econômicos abaixo
+  #                        τ = (We − Wr) / (We − Wc)
+  #                        Wr é recalibrado automaticamente por janela
+  #
+  # use_cost_tau: false → τ fixo = rejection_threshold (sem Chow)
+  #                        útil para comparação ou modelos sem saída probabilística suave
+  #
+  # Condição obrigatória (use_cost_tau: true):  Wc < Wr < We
+  #   Wc — custo de acertar (normalmente 0)
+  #   Wr — custo de rejeitar; recalibrado por janela via calibrate_wr()
+  #   We — custo de errar (deve ser > Wr)
+  #
+  # Exemplo padrão: τ = (0.05 − 0.01) / (0.05 − 0.00) = 0.80
+  #
+  use_cost_tau: true                # true = Chow dinâmico | false = τ fixo
+  Wc: 0.00                          # custo de acertar (fixo)
+  Wr: 0.01                          # custo de rejeitar (valor inicial; recalibrado por janela)
+  We: 0.05                          # custo de errar (fixo)
+  rejection_threshold: 0.60         # τ fixo — usado apenas quando use_cost_tau: false
+
+  # ── Restrições da calibração automática de Wr (por janela walk-forward) ──
+  # Ignoradas quando use_cost_tau: false.
+  #
+  wr_min_accept: 0.30               # mínimo 30% dos dias aceitos pelo modelo
+  wr_max_accept: 0.90               # máximo 90% dos dias aceitos pelo modelo
+
+evaluation:
+  ar_curve_thresholds: 20           # número de limiares na curva A-R (Seção 2.10.3)
+  risk_free_rate_annual: 0.1175     # taxa livre de risco anual (SELIC ~média do período)
+
+output:
+  figures_dir: "resultados/figuras"
+  reports_dir: "resultados"
+  save_predictions: true
