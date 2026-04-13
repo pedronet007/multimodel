@@ -1,4 +1,4 @@
-# Pipeline LSTM-B3 — Sistemas Inteligentes para Alocação de Capital
+# Pipeline Multimodel-B3 — Sistemas Inteligentes para Alocação de Capital
 
 **Dissertação:** "Sistemas Inteligentes para Alocação de Capital no Mercado Acionário"  
 **Autor:** Pedro Wilson Félix Magalhães Neto  
