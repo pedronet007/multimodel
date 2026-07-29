@@ -73,7 +73,7 @@ com pesos `(α=0.30, β=0.35, γ=0.35)` configuráveis em `config.yaml`
 
 ```bash
 # 1. Clone e entre no diretório
-cd projeto_lstm_b3
+cd projeto_multi_modelo
 
 # 2. Instale dependências
 pip install -r requirements.txt
@@ -98,7 +98,7 @@ python main.py --mode baseline --asset ivvb11
 Executa o pipeline walk-forward com LSTM multitarefa:
 ```bash
 python main.py --mode lstm --asset bova11
-python main.py --mode lstm --asset ivvb11
+python main.py --mode lstm --asset all
 ```
 
 ### Modo Demo (teste rápido — 2 janelas)
